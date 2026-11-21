@@ -25,3 +25,8 @@ aux4 whatsapp --phoneNumberId 1450110568185980 < delivery.json
 Set `--agentMachine agent-pete` (or VM environment variable `CLOUD_BOT_AGENT_MACHINE`) to use a generic agent with an authenticated completion callback. Set `AGENT_CALLBACK_MACHINE=whatsapp-bot` and `AGENT_CALLBACK_COMMAND=cloud-bot complete` on the agent, with exact VM command grants in both directions.
 
 Use `--brainCommand` / `CLOUD_BOT_COMMAND` for a synchronous command that prints a reply. Configure either an agent machine or a command. Text travels on stdin to the cloud transport; it never becomes a remote command path.
+
+After ingestion, queued work uses bounded retries. The new enqueue count
+protects against an unexpectedly empty lease. Flags `retryAttempts`,
+`retryDelay`, `retryMaxDelay`, `retryBudget` and `retryMaxMessages` control
+limits; exhausted work returns failure.

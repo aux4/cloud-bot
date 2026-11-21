@@ -11,7 +11,7 @@
     "turso"
   ],
   "dependencies": [
-    "aux4/bot@>=0.2.12",
+    "aux4/bot@>=0.2.13",
     "aux4/bot-meta@>=0.1.25",
     "aux4/secret-aux4-cloud",
     "aux4/cloud@>=1.2.34",
@@ -62,12 +62,13 @@
             "set:defaults=${botConfig.defaults}",
             "json:stdin:aux4 bot ingest params(channels, bots, defaults, db, dedupeTtl, queue)",
             "set:ingestStatus=${response.statusCode}",
+            "set:expected=${response.enqueued}",
             "node ${packageDir}/lib/status.mjs value(ingestStatus)",
-            "nout:aux4 bot work --mode pull params(channels, bots, defaults, db, tmpDir, queue)",
+            "nout:aux4 bot retry-work --expected value(expected) --attempts value(retryAttempts) --delay value(retryDelay) --maxDelay value(retryMaxDelay) --budget value(retryBudget) --maxMessages value(retryMaxMessages) params(channels, bots, defaults, db, tmpDir, queue)",
             "log:{\"ok\":true}"
           ],
           "help": {
-            "text": "Verify, enqueue, and process one signed WhatsApp webhook delivery",
+            "text": "Verify and enqueue signed WhatsApp events, then process queued work with bounded retries",
             "variables": [
               {
                 "name": "botId",
@@ -134,6 +135,37 @@
                 "text": "Synchronous command that prints a reply (alternative to agentMachine)",
                 "env": "CLOUD_BOT_COMMAND",
                 "default": ""
+              },
+              {
+                "name": "retryAttempts",
+                "text": "Maximum consecutive failed or unexpectedly empty worker attempts",
+                "default": "6"
+              },
+              {
+                "name": "retryDelay",
+                "text": "Initial retry delay in milliseconds",
+                "default": "1000"
+              },
+              {
+                "name": "retryMaxDelay",
+                "text": "Maximum retry delay in milliseconds",
+                "default": "15000"
+              },
+              {
+                "name": "retryBudget",
+                "text": "Milliseconds before stopping new worker attempts",
+                "default": "240000"
+              },
+              {
+                "name": "retryMaxMessages",
+                "text": "Maximum messages to acknowledge per invocation",
+                "default": "100"
+              },
+              {
+                "name": "expected",
+                "text": "Internal count of newly enqueued events",
+                "private": true,
+                "default": "0"
               }
             ]
           },
@@ -171,10 +203,10 @@
             "set:channels=${botConfig.channels}",
             "set:bots=${botConfig.bots}",
             "set:defaults=${botConfig.defaults}",
-            "aux4 bot work --mode pull params(channels, bots, defaults, db, tmpDir, queue)"
+            "aux4 bot retry-work --expected value(expected) --attempts value(retryAttempts) --delay value(retryDelay) --maxDelay value(retryMaxDelay) --budget value(retryBudget) --maxMessages value(retryMaxMessages) params(channels, bots, defaults, db, tmpDir, queue)"
           ],
           "help": {
-            "text": "Resume one queued message using this bot VM configuration",
+            "text": "Drain queued messages with bounded retries using this bot VM configuration",
             "variables": [
               {
                 "name": "botId",
@@ -241,6 +273,36 @@
                 "text": "Synchronous command that prints a reply (alternative to agentMachine)",
                 "env": "CLOUD_BOT_COMMAND",
                 "default": ""
+              },
+              {
+                "name": "retryAttempts",
+                "text": "Maximum consecutive failed or unexpectedly empty worker attempts",
+                "default": "6"
+              },
+              {
+                "name": "retryDelay",
+                "text": "Initial retry delay in milliseconds",
+                "default": "1000"
+              },
+              {
+                "name": "retryMaxDelay",
+                "text": "Maximum retry delay in milliseconds",
+                "default": "15000"
+              },
+              {
+                "name": "retryBudget",
+                "text": "Milliseconds before stopping new worker attempts",
+                "default": "240000"
+              },
+              {
+                "name": "retryMaxMessages",
+                "text": "Maximum messages to acknowledge per invocation",
+                "default": "100"
+              },
+              {
+                "name": "expected",
+                "text": "Newly enqueued messages expected before treating an empty lease as complete",
+                "default": "0"
               }
             ]
           }

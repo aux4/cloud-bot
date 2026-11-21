@@ -12,7 +12,7 @@ aux4 aux4 pkger install aux4/cloud-bot
 
 The `whatsapp` command consumes the platform webhook's raw request envelope on
 stdin, performs the bot's own Meta signature check, enqueues new messages, and
-processes one queue item before returning. Its default brain replies
+drains queued work with bounded retries before returning. Its default brain replies
 `you said: <text>`.
 
 Configure the `verifyToken` value when deploying and create the aux4-cloud
@@ -67,10 +67,24 @@ On the agent VM configure `AGENT_CALLBACK_MACHINE=whatsapp-bot` and `AGENT_CALLB
 
 For a synchronous command instead, set `CLOUD_BOT_COMMAND` to a command that prints its reply. Configure either a command or an agent machine. This POC routes text; cross-VM attachments need an explicit shared artifact mechanism.
 
-Use `aux4 cloud-bot work` on the machine to resume one queued message with the
-same bot configuration. It returns the worker lease/result summary and does not
-create an inbound message.
+Use `aux4 cloud-bot work` on the machine to drain queued messages with the
+same bot configuration. It returns a retry summary without creating an inbound
+message.
 
 The bot requires core queue leasing that distinguishes an empty queue from a
 provider failure. Agent conversation history stays enabled and is selected by
 the stable opaque conversation ID.
+
+## Worker retries
+
+A delivery passes its new enqueue count to `aux4 bot retry-work`, so an empty
+first lease does not strand a new message. Worker failures use bounded backoff
+while leases, stored attempt counts and agent/reply deduplication remain active.
+Default retry delays are 1, 2, 4, 8 and 15 seconds (six consecutive attempts).
+Successful work drains without a backoff delay.
+
+Command flags: `retryAttempts` (6), `retryDelay` (1000 ms), `retryMaxDelay`
+(15000 ms), `retryBudget` (240000 ms before starting more attempts), and
+`retryMaxMessages` (100). Exhausted limits return an error. In-flight work keeps
+its normal timeout; retries do not survive VM/process termination. No daemon,
+scheduler or additional credentials are introduced.
