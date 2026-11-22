@@ -5,7 +5,7 @@ const e = process.env;
 const agentMachine = configuredAgentMachine();
 const read = path => { try { return fs.readFileSync(path, "utf8").trim(); } catch { return ""; } };
 const packageVersions = {};
-for (const name of ["cloud-bot", "bot", "bot-meta", "queue", "repository", "cloud"]) {
+for (const name of ["cloud-bot", "bot", "bot-meta", "bot-chat", "queue", "repository", "cloud"]) {
   try { packageVersions[name] = JSON.parse(fs.readFileSync(new URL(`../../${name}/.aux4`, import.meta.url), "utf8")).version; } catch { /* Optional diagnostic only. */ }
 }
 const count = spawnSync("aux4", ["repository", "count", "whatsapp_bot_inbox_messages", "--db", "cloud"], {encoding:"utf8", timeout:10000, maxBuffer:65536});
