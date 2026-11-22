@@ -96,7 +96,7 @@ The agent receives an optional channel-neutral `sender: { displayName }` alongsi
 
 The optional `aux4/bot-chat` adapter shares this machine's repository queue and
 Turso capability with WhatsApp. Set secret binding `CHAT_BOT_SIGNING_SECRET` and
-static `CHAT_BOT_CALLBACK_URL` to the Chat deployment's `/apps/chat/bot-event`.
+static `CHAT_BOT_CALLBACK_URL` to the Chat deployment's `/api/apps/chat/bot-event`.
 The configured `bot.agentMachine` remains the only allowed chat target.
 Bind an asynchronous HMAC platform hook (timestamp header `X-Aux4-Chat-Timestamp`,
 signed template `{timestamp}.{body}`) to `cloud-bot chat`. The command pins channel `chat` and bot `chat-bot`. This command re-verifies and ingests the signed envelope, then
