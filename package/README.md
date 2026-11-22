@@ -91,3 +91,12 @@ scheduler or additional credentials are introduced.
 
 
 The agent receives an optional channel-neutral `sender: { displayName }` alongside its turn. WhatsApp phone numbers, provider IDs, credentials and profile authority flags are not forwarded. The display name does not grant access.
+
+## Cloud Chat participant
+
+The optional `aux4/bot-chat` adapter shares this machine's repository queue and
+Turso capability with WhatsApp. Set secret binding `CHAT_BOT_SIGNING_SECRET` and
+static `CHAT_BOT_CALLBACK_URL` to the Chat deployment's `/apps/chat/bot-event`.
+The configured `bot.agentMachine` remains the only allowed chat target.
+Bind an asynchronous HMAC platform hook to `cloud-bot chat`. The command pins channel `chat` and bot `chat-bot`. This command re-verifies and ingests the signed envelope, then
+awaits the bounded worker in the same invocation. It starts no background process.

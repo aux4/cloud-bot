@@ -11,11 +11,12 @@
     "turso"
   ],
   "dependencies": [
-    "aux4/bot@>=0.2.14",
+    "aux4/bot@>=0.2.15",
     "aux4/bot-meta@>=0.1.27",
     "aux4/secret-aux4-cloud",
     "aux4/cloud@>=1.2.34",
-    "aux4/config@>=0.2.11"
+    "aux4/config@>=0.2.11",
+    "aux4/bot-chat@>=0.1.0"
   ],
   "type": "cloud",
   "cloud": {
@@ -374,6 +375,16 @@
           "help": {
             "text": "Deliver a correlated agent completion using stored bot routing",
             "variables": []
+          }
+        },
+        {
+          "name": "chat",
+          "noHooks": true,
+          "execute": [
+            "stdin:node ${packageDir}/lib/chat-ingest.mjs"
+          ],
+          "help": {
+            "text": "Process signed Cloud Chat deliveries using the machine-owned bot configuration"
           }
         }
       ]

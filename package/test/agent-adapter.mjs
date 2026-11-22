@@ -97,3 +97,47 @@ test("channel-neutral profile forwards only a display name, never phone or autho
     assert.equal(agentRequest("hello",{...env,AUX4BOT_SENDER:profile}).body.sender,undefined);
   }
 });
+
+test("chat uses the same worker config and only the machine-configured agent", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(),"cloud-bot-chat-"));
+  const file = path.join(root,"config.json");
+  const script = new URL("../lib/config.mjs",import.meta.url).pathname;
+  await fs.writeFile(file,JSON.stringify({config:{bot:{agentMachine:"agent-pete"}}}));
+  const invoke = patch => spawnSync(process.execPath,[script,"whatsapp-bot","phone","verify","fixture-token","fixture-app-secret","https://graph.facebook.com","other-agent"],{env:{...process.env,CLOUD_BOT_CONFIG_FILE:file,CHAT_BOT_SIGNING_SECRET:"local-fixture-key-".repeat(3),CHAT_BOT_CALLBACK_URL:"https://chat.example.test/apps/chat/bot-event",...patch},encoding:"utf8"});
+  try {
+    const result=invoke({});assert.equal(result.status,0,result.stderr);
+    const config=JSON.parse(result.stdout);
+    assert.deepEqual(config.channels,["whatsapp","chat"]);
+    assert.equal(config.bots["chat-bot"].agentMachine,"agent-pete");
+    assert.equal(config.bots["chat-bot"].history,false);
+    assert.equal(config.bots["chat-bot"].sendIdempotent,true);
+    assert.notEqual(invoke({CHAT_BOT_SIGNING_SECRET:""}).status,0);
+  } finally {await fs.rm(root,{recursive:true,force:true});}
+});
+
+test("generic platform hook pins chat routing and awaits work after successful ingest", async () => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),"chat-ingress-"));
+  const capture=path.join(root,"calls.jsonl");
+  await fs.writeFile(path.join(root,"aux4"),`#!/usr/bin/env node
+const fs=require('node:fs');let input='';process.stdin.on('data',x=>input+=x);process.stdin.on('end',()=>{
+ const args=process.argv.slice(2);fs.appendFileSync(process.env.TEST_CAPTURE,JSON.stringify({args,input})+'\\n');
+ if(args[1]==='ingest')process.stdout.write(JSON.stringify({statusCode:Number(process.env.TEST_INGEST_STATUS || 200),enqueued:1}));
+ else if(args[1]==='retry-work')process.stdout.write('{"processed":1,"exhausted":false}');
+ else process.exitCode=1;
+});
+`);await fs.chmod(path.join(root,"aux4"),0o755);
+  const script=new URL("../lib/chat-ingest.mjs",import.meta.url).pathname;
+  const env={...process.env,PATH:`${root}:${process.env.PATH}`,TEST_CAPTURE:capture,CLOUD_BOT_AGENT_MACHINE:"agent-pete",CHAT_BOT_SIGNING_SECRET:"local-test-key-".repeat(4),CHAT_BOT_CALLBACK_URL:"https://chat.example.test/apps/chat/bot-event"};
+  const envelope={pathParameters:{channel:"webhook",bot:"whatsapp-bot"},rawBody:'{"text":"literal"}',headers:{"x-aux4-chat-signature":"fixture"},queryStringParameters:{agentMachine:"attacker",bot:"attacker"}};
+  try {
+    const result=spawnSync(process.execPath,[script],{input:JSON.stringify(envelope),encoding:"utf8",env});
+    assert.equal(result.status,0,result.stderr);
+    const calls=(await fs.readFile(capture,"utf8")).trim().split('\n').map(JSON.parse);
+    assert.equal(calls.length,2);assert.deepEqual(JSON.parse(calls[0].input).pathParameters,{channel:"chat",bot:"chat-bot"});
+    const bots=JSON.parse(calls[0].args[calls[0].args.indexOf('--bots')+1]);assert.equal(bots['chat-bot'].agentMachine,'agent-pete');
+    const queue=JSON.parse(calls[1].args[calls[1].args.indexOf('--queue')+1]);assert.equal(queue.name,'whatsapp_bot_inbox');assert.equal(queue.db,'cloud');
+    const rejected=spawnSync(process.execPath,[script],{input:JSON.stringify(envelope),encoding:"utf8",env:{...env,TEST_INGEST_STATUS:'401'}});
+    assert.notEqual(rejected.status,0);
+    const all=(await fs.readFile(capture,'utf8')).trim().split('\n').map(JSON.parse);assert.equal(all.length,3);
+  } finally {await fs.rm(root,{recursive:true,force:true});}
+});
