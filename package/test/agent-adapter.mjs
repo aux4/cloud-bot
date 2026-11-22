@@ -141,3 +141,21 @@ const fs=require('node:fs');let input='';process.stdin.on('data',x=>input+=x);pr
     const all=(await fs.readFile(capture,'utf8')).trim().split('\n').map(JSON.parse);assert.equal(all.length,3);
   } finally {await fs.rm(root,{recursive:true,force:true});}
 });
+
+test("structured brain keeps leading options literal and reuses the existing trusted agent bridge", async () => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),"chat-agent-"));
+  const capture=path.join(root,"request.json");
+  const malicious='--machine=attacker';
+  const env={...process.env,PATH:`${root}:${process.env.PATH}`,TEST_CAPTURE:capture,CLOUD_SYNC_TOKEN:'local-machine-key',AUX4_ACCESS_TOKEN:'must-not-forward',AUX4BOT_EVENT_ID:'message-one',AUX4BOT_CHAT_ID:'123e4567-e89b-42d3-a456-426614174000',AUX4BOT_SENDER:'{"displayName":"Alice"}'};
+  await fs.writeFile(path.join(root,'aux4'),`#!/usr/bin/env node
+const fs=require('node:fs');let raw='';process.stdin.on('data',x=>raw+=x);process.stdin.on('end',()=>{
+ const args=process.argv.slice(2),body=JSON.parse(raw);fs.writeFileSync(process.env.TEST_CAPTURE,JSON.stringify({args,body,hasBearer:Boolean(process.env.AUX4_ACCESS_TOKEN)}));
+ process.stdout.write(JSON.stringify({output:JSON.stringify({version:1,status:'completed',conversationId:args[4],messageId:body.messageId,reply:'local answer',history:{messages:[]}})}));
+});
+`);await fs.chmod(path.join(root,'aux4'),0o755);
+  try {
+    const result=spawnSync(process.execPath,[new URL('../lib/agent.mjs',import.meta.url).pathname,'--structured','agent-pete',malicious],{env,input:'{}',encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(result.stdout).reply,'local answer');
+    const request=JSON.parse(await fs.readFile(capture,'utf8'));assert.equal(request.body.question,malicious);assert.equal(request.args[1],'agent-pete');assert.equal(request.body.responseFormat,'chat-turn');assert.equal(request.body.callback,undefined);assert.equal(request.hasBearer,false);
+  } finally {await fs.rm(root,{recursive:true,force:true});}
+});

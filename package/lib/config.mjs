@@ -23,7 +23,7 @@ const config = {
   if (chatSecret || chatCallback) {
     if (chatSecret.length < 32 || !chatCallback || !chatAgent) throw new Error("Chat connection is incomplete");
     config.channels.push("chat");
-    config.bots["chat-bot"] = {channel:"chat",signingSecret:chatSecret,callbackUrl:chatCallback,agentMachine:chatAgent,command:`aux4 bot chat agent --machine ${chatAgent}`,history:false,sendIdempotent:true};
+    config.bots["chat-bot"] = {channel:"chat",signingSecret:chatSecret,callbackUrl:chatCallback,agentMachine:chatAgent,command:`node '${new URL("./agent.mjs", import.meta.url).pathname}' --structured ${chatAgent}`,history:false,sendIdempotent:true};
   }
   return config;
 }
