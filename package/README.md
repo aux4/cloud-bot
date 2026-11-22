@@ -88,3 +88,6 @@ Command flags: `retryAttempts` (6), `retryDelay` (1000 ms), `retryMaxDelay`
 `retryMaxMessages` (100). Exhausted limits return an error. In-flight work keeps
 its normal timeout; retries do not survive VM/process termination. No daemon,
 scheduler or additional credentials are introduced.
+
+
+The agent receives an optional channel-neutral `sender: { displayName }` alongside its turn. WhatsApp phone numbers, provider IDs, credentials and profile authority flags are not forwarded. The display name does not grant access.

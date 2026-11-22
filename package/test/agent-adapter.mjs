@@ -88,3 +88,12 @@ test("completion configuration is fixed by the bot VM, never RPC parameters", ()
   assert.equal(bot.token,"fixture-token");
   assert.throws(()=>completionArgs({token:"rpc-token"}),/binding/);
 });
+
+test("channel-neutral profile forwards only a display name, never phone or authority", () => {
+  const r = agentRequest("hello", {...env, AUX4BOT_SENDER: JSON.stringify({displayName:"Ada",phone:"15551234",verified:true,token:"private",machine:"attacker"})});
+  assert.deepEqual(r.body.sender,{displayName:"Ada"});
+  assert.equal(JSON.stringify(r.body).includes("15551234"),false);
+  for(const profile of ["bad", "{}", '{"displayName":42}', '{"displayName":""}']) {
+    assert.equal(agentRequest("hello",{...env,AUX4BOT_SENDER:profile}).body.sender,undefined);
+  }
+});

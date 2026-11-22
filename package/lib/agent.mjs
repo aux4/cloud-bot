@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 
-// The bot owns routing. Only opaque correlation IDs and message text cross the
-// agent boundary; the agent's completion destination is machine configuration.
+// The bot owns routing. Opaque correlation IDs, text, and an optional display
+// name cross the agent boundary. The completion destination is VM configuration.
 export function agentRequest(text, env = process.env) {
   const machine = env.CLOUD_BOT_AGENT_MACHINE || "";
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(machine)) throw new Error("Invalid configured agent machine");
@@ -10,9 +10,16 @@ export function agentRequest(text, env = process.env) {
   if (!/^[a-zA-Z0-9._:-]{1,128}$/.test(requestId) || !/^[a-zA-Z0-9._:-]{1,128}$/.test(conversationId)) {
     throw new Error("Missing bot correlation identifiers");
   }
+  let sender;
+  try {
+    const profile = JSON.parse(env.AUX4BOT_SENDER || "{}");
+    if (typeof profile?.displayName === "string" && profile.displayName.trim()) {
+      sender = { displayName: profile.displayName.trim().slice(0, 200) };
+    }
+  } catch { /* Old/custom handlers may omit profile metadata. */ }
   return {
     args: ["cloud", machine, "ask", "--conversationId", conversationId],
-    body: { question: text, messageId: requestId, requestId, callback: { enabled: true } }
+    body: { question: text, ...(sender ? { sender } : {}), messageId: requestId, requestId, callback: { enabled: true } }
   };
 }
 

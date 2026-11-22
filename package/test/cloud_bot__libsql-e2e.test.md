@@ -63,7 +63,7 @@ rm -f retry-brain-count
 node --input-type=module -e '
 import fs from "node:fs";
 import crypto from "node:crypto";
-const body = JSON.stringify({object:"whatsapp_business_account",entry:[{changes:[{value:{messages:[{from:"15551230001",id:"wamid.RETRY."+crypto.randomUUID(),type:"text",text:{body:"retry me"}}]}}]}]});
+const body = JSON.stringify({object:"whatsapp_business_account",entry:[{changes:[{value:{contacts:[{wa_id:"15551230001",profile:{name:"Ada"}}],messages:[{from:"15551230001",id:"wamid.RETRY."+crypto.randomUUID(),type:"text",text:{body:"retry me"}}]}}]}]});
 const signature = "sha256="+crypto.createHmac("sha256","test-app-secret").update(body).digest("hex");
 fs.writeFileSync("envelope.json",JSON.stringify({method:"POST",headers:{"x-hub-signature-256":signature},pathParameters:{channel:"whatsapp",bot:"whatsapp-bot"},rawBody:body}));
 '
