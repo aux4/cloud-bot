@@ -11,7 +11,7 @@
     "turso"
   ],
   "dependencies": [
-    "aux4/bot@>=0.2.15",
+    "aux4/bot@>=0.2.16",
     "aux4/bot-meta@>=0.1.27",
     "aux4/secret-aux4-cloud",
     "aux4/cloud@>=1.2.34",
