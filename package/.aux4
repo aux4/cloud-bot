@@ -16,7 +16,7 @@
     "aux4/secret-aux4-cloud",
     "aux4/cloud@>=1.2.34",
     "aux4/config@>=0.2.11",
-    "aux4/bot-chat@>=0.1.4"
+    "aux4/bot-chat@>=0.1.6"
   ],
   "type": "cloud",
   "cloud": {

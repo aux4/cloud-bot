@@ -101,3 +101,5 @@ The configured `bot.agentMachine` remains the only allowed chat target.
 Bind an asynchronous HMAC platform hook (timestamp header `X-Aux4-Chat-Timestamp`,
 signed template `{timestamp}.{body}`) to `cloud-bot chat`. The command pins channel `chat` and bot `chat-bot`. This command re-verifies and ingests the signed envelope, then
 awaits the bounded worker in the same invocation. It starts no background process.
+
+Chat sender context carries the authenticated display name and a stable opaque user ID. It grants no roles or permissions and contains no phone number or credential.

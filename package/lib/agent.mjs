@@ -15,7 +15,7 @@ export function agentRequest(text, env = process.env) {
   try {
     const profile = JSON.parse(env.AUX4BOT_SENDER || "{}");
     if (typeof profile?.displayName === "string" && profile.displayName.trim()) {
-      sender = { displayName: profile.displayName.trim().slice(0, 200) };
+      sender = { displayName: profile.displayName.trim().slice(0, 200), ...(typeof profile.id === "string" && /^[a-f0-9]{64}$/.test(profile.id) ? {id:profile.id} : {}) };
     }
   } catch { /* Old/custom handlers may omit profile metadata. */ }
   return {
