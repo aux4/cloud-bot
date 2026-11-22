@@ -1,7 +1,7 @@
 {
   "scope": "aux4",
   "name": "cloud-bot",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "Run a multi-channel bot on one aux4.cloud command machine",
   "license": "Apache-2.0",
   "tags": [
