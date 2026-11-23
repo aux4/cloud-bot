@@ -5,7 +5,7 @@ import { configuredAgentMachine } from "./agent-config.mjs";
 
 const INPUT_LIMIT = 65536;
 const OUTPUT_LIMIT = 131072;
-const COMMANDS = Object.freeze({ action: "artifact-action", update: "artifact-update", return: "artifact-return" });
+const OPERATIONS = Object.freeze(["action", "update", "return"]);
 const FAILURE = "Artifact operation could not be completed. Reload before trying again.";
 const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
 function keys(value, allowed) {
@@ -24,7 +24,7 @@ export function verifyArtifactEnvelope(raw, secret, now = Date.now()) {
   if (!timingSafeEqual(expected, Buffer.from(envelope.signature.slice(7), "hex"))) throw new Error("Invalid artifact authorization");
   const request = JSON.parse(envelope.payload);
   keys(request, ["operation", "input"]);
-  if (!Object.hasOwn(COMMANDS, request.operation)) throw new Error("Invalid artifact operation");
+  if (!OPERATIONS.includes(request.operation)) throw new Error("Invalid artifact operation");
   const input = request.input;
   const allowed = ["artifactId", "ref", "conversationId", ...(request.operation === "return" ? [] : ["revision", "state"]), ...(request.operation === "action" ? ["action"] : [])];
   keys(input, allowed);
@@ -38,8 +38,7 @@ export function verifyArtifactEnvelope(raw, secret, now = Date.now()) {
 
 export function artifactRequest(request, machine) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(machine || "")) throw new Error("Invalid configured agent machine");
-  const { conversationId, ...body } = request.input;
-  return { args: ["cloud", machine, COMMANDS[request.operation], "--conversationId", conversationId], body };
+  return { args: ["cloud", machine, "room-artifact"], body: { operation: request.operation, input: request.input } };
 }
 
 // Only exact, known pre-mutation CAS failures allow the caller to reconcile.

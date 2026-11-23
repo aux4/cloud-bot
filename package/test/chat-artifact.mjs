@@ -41,9 +41,9 @@ test("only fixed operations and allowlisted typed input pass authorization", () 
     const input = request(operation);
     const verified = verifyArtifactEnvelope(signed(input), secret);
     const transport = artifactRequest(verified, "agent-pete");
-    assert.deepEqual(transport.args, ["cloud", "agent-pete", `artifact-${operation}`, "--conversationId", conversationId]);
-    assert.equal(transport.body.conversationId, undefined);
-    assert.equal(transport.body.artifactId, base.artifactId);
+    assert.deepEqual(transport.args, ["cloud", "agent-pete", "room-artifact"]);
+    assert.deepEqual(transport.body, input);
+    assert.equal(transport.body.input.conversationId, conversationId);
   }
   assert.throws(() => artifactRequest(value, "agent-pete --raw"));
 });
@@ -65,14 +65,17 @@ const fs=require('node:fs');let raw='';process.stdin.on('data',x=>raw+=x);proces
 }
 
 test("dispatch pins actual command, JSON stdin and bot identity for every operation", () => fixture(async (env, capture) => {
+  for (const patch of [{ command: "ask" }, { target: "attacker" }, { operation: "room-artifact" }]) {
+    await assert.rejects(dispatchArtifact(signed({ ...request("action"), ...patch }), env));
+  }
+  await assert.rejects(fs.access(capture));
   for (const operation of ["action", "update", "return"]) {
     const result = await dispatchArtifact(signed(request(operation)), env);
     assert.equal(result.code, 0);
     assert.equal(JSON.parse(result.output).revision, 3);
     const sent = JSON.parse(await fs.readFile(capture, "utf8"));
-    assert.deepEqual(sent.args, ["cloud", "agent-pete", `artifact-${operation}`, "--conversationId", conversationId]);
-    const { conversationId: unused, ...body } = request(operation).input;
-    assert.deepEqual(sent.body, body);
+    assert.deepEqual(sent.args, ["cloud", "agent-pete", "room-artifact"]);
+    assert.deepEqual(sent.body, request(operation));
     assert.equal(sent.hasBearer, false);
     assert.equal(sent.machine, "local-machine-identity");
   }

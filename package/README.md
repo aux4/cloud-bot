@@ -111,10 +111,11 @@ Interactive Chat artifacts use `cloud-bot chat-artifact`. The Chat server signs 
 bounded request with the existing connection secret after checking room membership
 and the stored bot-authored artifact. The bot accepts only action, update and
 return operations, validates the UUID conversation, and invokes the configured
-agent's fixed artifact command with the bot machine identity. The viewer's bearer
-is removed so creation and subsequent actions use the same artifact owner.
-Grant only `cloud-bot/chat-artifact` from Chat to this bot, and `artifact-action`,
-`artifact-update`, and `artifact-return` from the bot to its configured agent.
+agent's fixed `room-artifact` command with the bot machine identity. The wrapper
+uses the conversation UUID to isolate each room's artifact catalog and backend
+state. The viewer's bearer is removed so creation and subsequent actions use the
+same artifact owner. Grant only `cloud-bot/chat-artifact` from Chat to this bot,
+and `ask` and `room-artifact` from the bot to its configured agent.
 Requests expire after five minutes. Execution is bounded; ambiguous failures are
 never retried automatically. See `aux4 cloud-bot chat-artifact --help` and its man
 page for the signed envelope and safe result contract.

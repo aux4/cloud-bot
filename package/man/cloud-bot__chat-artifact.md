@@ -33,9 +33,11 @@ SHA-256 of `timestamp.payload`. Requests must be within five minutes and at most
 }
 ```
 
-Operations map only to `artifact-action`, `artifact-update`, or `artifact-return`.
-Action adds the declared `action` name; return accepts only the locator and
-conversation. A successful transport returns `{code, output}` with at most 128 KiB
+Every operation invokes only the configured agent's fixed `room-artifact` command.
+The verified `operation` and `input`, including the conversation UUID, cross as
+JSON stdin. The agent wrapper uses that UUID to isolate each room's artifact
+catalog and backend state. Action adds the declared `action` name; return accepts
+only the locator and conversation. A successful transport returns `{code, output}` with at most 128 KiB
 of command JSON output. Failures return generic text; only a definite revision
 conflict adds `revisionMismatch: true`. Execution stops after 18 seconds, plus up
 to five seconds for configured target lookup. There is no automatic mutation retry.
