@@ -37,7 +37,14 @@ Every operation invokes only the configured agent's fixed `room-artifact` comman
 The verified `operation` and `input`, including the conversation UUID, cross as
 JSON stdin. The agent wrapper uses that UUID to isolate each room's artifact
 catalog and backend state. Action adds the declared `action` name; return accepts
-only the locator and conversation. A successful transport returns `{code, output}` with at most 128 KiB
-of command JSON output. Failures return generic text; only a definite revision
+only the locator and conversation. The agent must return its successful result
+inside `roomArtifactResult`, which the bot validates and unwraps. This preserves
+application fields named `output`, `body`, or `code` through the Cloud CLI.
+Command stdout returns an `artifactResult`
+object containing `{code, output}`, preserving the same result through raw and
+legacy Cloud transports. Output contains at most 128 KiB of command JSON.
+Failures return generic text; only a definite revision
 conflict adds `revisionMismatch: true`. Execution stops after 18 seconds, plus up
 to five seconds for configured target lookup. There is no automatic mutation retry.
+The outbound CLI runs directly with `AUX4_NO_DAEMON=1` so its cleaned machine
+environment cannot inherit a resident daemon's caller bearer.

@@ -119,3 +119,8 @@ and `ask` and `room-artifact` from the bot to its configured agent.
 Requests expire after five minutes. Execution is bounded; ambiguous failures are
 never retried automatically. See `aux4 cloud-bot chat-artifact --help` and its man
 page for the signed envelope and safe result contract.
+The command emits `{artifactResult: {code, output}}` so both raw Function URL
+responses and legacy Cloud response envelopes preserve the application result.
+The agent's `roomArtifactResult` envelope protects arbitrary action state fields
+such as `output` and `body` through the inner Cloud transport as well.
+Outbound dispatch disables daemon forwarding after removing the caller bearer.

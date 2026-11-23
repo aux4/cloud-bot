@@ -48,27 +48,24 @@ function revisionMismatch(detail) {
 }
 
 function resultView(code, stdout, stderr) {
-  let output = stdout;
-  try {
-    const value = JSON.parse(stdout);
-    if (object(value) && typeof value.output === "string") {
-      output = value.output;
-      if (Number.isInteger(value.code)) code = value.code;
-    }
-  } catch { /* Direct command stdout is supported alongside the cloud envelope. */ }
   if (code !== 0) {
-    const mismatch = revisionMismatch(`${output}\n${stderr}`);
+    const mismatch = revisionMismatch(`${stdout}\n${stderr}`);
     return { code: Number.isInteger(code) && code > 0 ? code : 1, output: mismatch ? "Artifact revision changed; reload and try again." : FAILURE, ...(mismatch ? { revisionMismatch: true } : {}) };
   }
+  let output;
+  try {
+    const wire = JSON.parse(stdout);
+    if (!object(wire) || Object.keys(wire).length !== 1 || !Object.hasOwn(wire, "roomArtifactResult") || !object(wire.roomArtifactResult)) throw new Error();
+    output = JSON.stringify(wire.roomArtifactResult);
+  } catch { return { code: 1, output: FAILURE }; }
   if (Buffer.byteLength(output) > OUTPUT_LIMIT) return { code: 1, output: FAILURE };
-  try { JSON.parse(output); } catch { return { code: 1, output: FAILURE }; }
   return { code: 0, output };
 }
 
 export async function dispatchArtifact(raw, env = process.env, { timeoutMs = 18000 } = {}) {
   const request = verifyArtifactEnvelope(raw, env.CHAT_BOT_SIGNING_SECRET);
   if (!String(env.CLOUD_SYNC_TOKEN || "").trim()) throw new Error("Machine identity is required");
-  const childEnv = { ...env };
+  const childEnv = { ...env, AUX4_NO_DAEMON: "1" };
   delete childEnv.AUX4_ACCESS_TOKEN;
   const transport = artifactRequest(request, configuredAgentMachine(childEnv));
   return new Promise(resolve => {
@@ -95,7 +92,10 @@ async function main() {
     raw += chunk;
     if (Buffer.byteLength(raw) > INPUT_LIMIT) throw new Error("Invalid artifact request");
   }
-  process.stdout.write(`${JSON.stringify(await dispatchArtifact(raw))}\n`);
+  // `aux4 cloud` unwraps reserved output/body fields on both legacy /run and
+  // raw Function URL responses. Keep the application result under its own key
+  // so both transports preserve the same code/output contract for Chat.
+  process.stdout.write(`${JSON.stringify({ artifactResult: await dispatchArtifact(raw) })}\n`);
 }
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   main().catch(() => { process.stderr.write("Artifact request could not be processed\n"); process.exitCode = 1; });

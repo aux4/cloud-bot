@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { spawn, spawnSync } from "node:child_process";
+import http from "node:http";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -53,9 +55,9 @@ async function fixture(run) {
   const capture = path.join(root, "capture.json");
   await fs.writeFile(path.join(root, "aux4"), `#!/usr/bin/env node
 const fs=require('node:fs');let raw='';process.stdin.on('data',x=>raw+=x);process.stdin.on('end',()=>{
- fs.writeFileSync(process.env.TEST_CAPTURE,JSON.stringify({args:process.argv.slice(2),body:JSON.parse(raw),hasBearer:Object.hasOwn(process.env,'AUX4_ACCESS_TOKEN'),machine:process.env.CLOUD_SYNC_TOKEN}));
+ fs.writeFileSync(process.env.TEST_CAPTURE,JSON.stringify({args:process.argv.slice(2),body:JSON.parse(raw),hasBearer:Object.hasOwn(process.env,'AUX4_ACCESS_TOKEN'),machine:process.env.CLOUD_SYNC_TOKEN,noDaemon:process.env.AUX4_NO_DAEMON}));
  if(process.env.TEST_WAIT)return setTimeout(()=>{},2000);
- process.stdout.write(process.env.TEST_SIZE ? JSON.stringify({code:0,output:JSON.stringify({value:'x'.repeat(Number(process.env.TEST_SIZE))})}) : process.env.TEST_OUTPUT||JSON.stringify({code:0,output:JSON.stringify({artifact:{id:'bot/agent/list'},revision:3})}));
+ process.stdout.write(process.env.TEST_SIZE ? JSON.stringify({roomArtifactResult:{value:'x'.repeat(Number(process.env.TEST_SIZE))}}) : process.env.TEST_OUTPUT||JSON.stringify({roomArtifactResult:{artifact:{id:'bot/agent/list'},revision:3}}));
  process.stderr.write(process.env.TEST_ERROR||'');process.exitCode=Number(process.env.TEST_CODE||0);
 });
 `, { mode: 0o755 });
@@ -78,9 +80,51 @@ test("dispatch pins actual command, JSON stdin and bot identity for every operat
     assert.deepEqual(sent.body, request(operation));
     assert.equal(sent.hasBearer, false);
     assert.equal(sent.machine, "local-machine-identity");
+    assert.equal(sent.noDaemon, "1");
   }
   await assert.rejects(dispatchArtifact(signed(request("action")), { ...env, CLOUD_SYNC_TOKEN: "" }), /Machine identity/);
   await assert.rejects(dispatchArtifact(signed(request("action")), { ...env, CLOUD_BOT_AGENT_MACHINE: "attacker --raw" }), /configured agent/);
+}));
+
+test("actual Cloud CLI preserves the command wire result through raw and legacy responses", () => fixture(async env => {
+  const script = new URL("../lib/chat-artifact.mjs", import.meta.url).pathname;
+  const emitted = spawnSync(process.execPath, [script], { env, input: signed(request("return")), encoding: "utf8" });
+  assert.equal(emitted.status, 0, emitted.stderr);
+  const wire = JSON.parse(emitted.stdout);
+  assert.deepEqual(Object.keys(wire), ["artifactResult"]);
+  assert.equal(wire.artifactResult.code, 0);
+  let responseBody = "", calls = 0;
+  const server = http.createServer((req, res) => {
+    req.resume();
+    req.once("end", () => {
+      calls++;
+      assert.equal(req.url, "/v1/fixture/run/bot-fixture/cloud-bot/chat-artifact");
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(responseBody);
+    });
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const cliEnv = { ...process.env, AUX4_NO_DAEMON: "1", AUX4_CLOUD_API_URL: `http://127.0.0.1:${server.address().port}`, AUX4_CLOUD_SCOPE: "fixture", CLOUD_SYNC_TOKEN: "00000000-0000-4000-8000-000000000000", AUX4_ACCESS_TOKEN: "local-fixture-only" };
+  const run = () => new Promise((resolve, reject) => {
+    const child = spawn("aux4", ["cloud", "bot-fixture", "cloud-bot", "chat-artifact", "--scope", "fixture"], { env: cliEnv, stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", chunk => stdout += chunk);
+    child.stderr.on("data", chunk => stderr += chunk);
+    child.once("error", reject);
+    child.once("close", code => resolve({ code, stdout, stderr }));
+    child.stdin.end("{}");
+  });
+  try {
+    for (const result of [wire, { artifactResult: { code: 1, output: "Safe failure", revisionMismatch: true } }]) {
+      for (const transport of [result, { output: JSON.stringify(result), exitCode: 0 }]) {
+        responseBody = JSON.stringify(transport);
+        const received = await run();
+        assert.equal(received.code, 0, received.stderr);
+        assert.deepEqual(JSON.parse(received.stdout), result);
+      }
+    }
+    assert.equal(calls, 4);
+  } finally { await new Promise(resolve => server.close(resolve)); }
 }));
 
 test("failures are safe and only definite revision conflicts permit reconciliation", () => fixture(async env => {
@@ -92,7 +136,10 @@ test("failures are safe and only definite revision conflicts permit reconciliati
   }
   for (const patch of [
     { TEST_CODE: "1", TEST_OUTPUT: "raw-secret", TEST_ERROR: "token=private revision mismatch" },
-    { TEST_OUTPUT: JSON.stringify({ code: 1, output: "credentials=private backend failed" }) },
+    { TEST_CODE: "1", TEST_OUTPUT: JSON.stringify({ code: 1, output: "credentials=private backend failed" }) },
+    { TEST_OUTPUT: JSON.stringify({ artifact: { id: "unwrapped-result" } }) },
+    { TEST_OUTPUT: JSON.stringify({ roomArtifactResult: null }) },
+    { TEST_OUTPUT: JSON.stringify({ roomArtifactResult: {}, output: "unexpected" }) },
     { TEST_OUTPUT: "invalid output includes private" }, { TEST_WAIT: "1" }
   ]) {
     const result = await dispatchArtifact(raw, { ...env, ...patch }, { timeoutMs: 100 });
@@ -101,6 +148,34 @@ test("failures are safe and only definite revision conflicts permit reconciliati
     assert.equal(/private|raw-secret/.test(result.output), false);
   }
 }));
+
+test("actual Cloud CLI preserves room results and reserved domain keys at the agent hop", async () => {
+  let responseBody = "", calls = 0;
+  const server = http.createServer((req, res) => {
+    req.resume();
+    req.once("end", () => {
+      calls++;
+      assert.equal(req.url, "/v1/fixture/run/agent-pete/room-artifact");
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(responseBody);
+    });
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const env = { ...process.env, AUX4_NO_DAEMON: "0", AUX4_CLOUD_API_URL: `http://127.0.0.1:${server.address().port}`, AUX4_CLOUD_SCOPE: "fixture", CLOUD_SYNC_TOKEN: "00000000-0000-4000-8000-000000000000", CLOUD_BOT_AGENT_MACHINE: "agent-pete", CHAT_BOT_SIGNING_SECRET: secret };
+  delete env.AUX4_ACCESS_TOKEN;
+  try {
+    for (const patch of [{ artifact: { id: "fixture" }, revision: 2 }, { output: "domain output", body: "domain body", code: 17 }]) {
+      const wire = { roomArtifactResult: patch };
+      for (const transport of [wire, { output: JSON.stringify(wire), exitCode: 0 }]) {
+        responseBody = JSON.stringify(transport);
+        const result = await dispatchArtifact(signed(request("action")), env);
+        assert.equal(result.code, 0);
+        assert.deepEqual(JSON.parse(result.output), patch);
+      }
+    }
+    assert.equal(calls, 4);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
 
 test("128 KiB actual command JSON output survives wrapping; overflow fails safely", () => fixture(async env => {
   const output = JSON.stringify({ value: "x".repeat(131050) });
