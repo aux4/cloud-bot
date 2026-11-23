@@ -102,4 +102,19 @@ Bind an asynchronous HMAC platform hook (timestamp header `X-Aux4-Chat-Timestamp
 signed template `{timestamp}.{body}`) to `cloud-bot chat`. The command pins channel `chat` and bot `chat-bot`. This command re-verifies and ingests the signed envelope, then
 awaits the bounded worker in the same invocation. It starts no background process.
 
+A correlated failed agent turn produces a generic visible failure reply. Failed
+transcripts, error details and artifacts are omitted from that reply.
+
 Chat sender context carries the authenticated display name and a stable opaque user ID. It grants no roles or permissions and contains no phone number or credential.
+
+Interactive Chat artifacts use `cloud-bot chat-artifact`. The Chat server signs a
+bounded request with the existing connection secret after checking room membership
+and the stored bot-authored artifact. The bot accepts only action, update and
+return operations, validates the UUID conversation, and invokes the configured
+agent's fixed artifact command with the bot machine identity. The viewer's bearer
+is removed so creation and subsequent actions use the same artifact owner.
+Grant only `cloud-bot/chat-artifact` from Chat to this bot, and `artifact-action`,
+`artifact-update`, and `artifact-return` from the bot to its configured agent.
+Requests expire after five minutes. Execution is bounded; ambiguous failures are
+never retried automatically. See `aux4 cloud-bot chat-artifact --help` and its man
+page for the signed envelope and safe result contract.

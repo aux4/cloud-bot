@@ -1,7 +1,7 @@
 {
   "scope": "aux4",
   "name": "cloud-bot",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "Run a multi-channel bot on one aux4.cloud command machine",
   "license": "Apache-2.0",
   "tags": [
@@ -16,7 +16,7 @@
     "aux4/secret-aux4-cloud",
     "aux4/cloud@>=1.2.34",
     "aux4/config@>=0.2.11",
-    "aux4/bot-chat@>=0.1.6"
+    "aux4/bot-chat@0.1.7"
   ],
   "type": "cloud",
   "cloud": {
@@ -186,6 +186,17 @@
     {
       "name": "cloud-bot",
       "commands": [
+        {
+          "name": "chat-artifact",
+          "noHooks": true,
+          "execute": [
+            "stdin:node ${packageDir}/lib/chat-artifact.mjs"
+          ],
+          "help": {
+            "text": "Run a signed Cloud Chat artifact operation as this bot on its configured agent",
+            "variables": []
+          }
+        },
         {
           "name": "status",
           "execute": [

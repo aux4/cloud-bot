@@ -38,12 +38,19 @@ export async function dispatchAgent(text, env = process.env) {
     if (structured) child.stdout.on("data",chunk=>{output+=chunk;if(Buffer.byteLength(output)>262144)child.kill();});
     child.once("error", () => reject(new Error("Agent invocation could not start")));
     child.once("close", code => {
+      if(!structured) return code===0 ? resolve() : reject(new Error("Agent invocation failed"));
+      const failedTurn = () => JSON.stringify({version:1,status:"failed",conversationId:request.args[4],messageId:request.body.messageId,reply:"Pete could not return a response. Please try again.",history:{messages:[]}});
+      // A completed CLI failure may discard the agent's failed stdout. The
+      // local request already owns correlation; no remote error is forwarded.
+      if(Number.isInteger(code) && code>0) return resolve(failedTurn());
       if(code!==0) return reject(new Error("Agent invocation failed"));
-      if(!structured) return resolve();
       try {
         let result=JSON.parse(output);if(typeof result.output === "string")result=JSON.parse(result.output);
-        if(result.version!==1 || result.status!=="completed" || result.conversationId!==request.args[4] || result.messageId!==request.body.messageId || typeof result.reply!=="string")throw new Error();
-        resolve(JSON.stringify(result));
+        if(result.version!==1 || !["completed","failed"].includes(result.status) || result.conversationId!==request.args[4] || result.messageId!==request.body.messageId || typeof result.reply!=="string")throw new Error();
+        // A completed agent attempt can fail after its user-facing error was
+        // recorded. Deliver a correlated safe reply so Chat does not remain
+        // pending; never expose the failed transcript, artifacts or raw error.
+        resolve(result.status==="failed" ? failedTurn() : JSON.stringify(result));
       } catch {reject(new Error("Agent did not return a completed turn"));}
     });
     child.stdin.on("error", () => {});
